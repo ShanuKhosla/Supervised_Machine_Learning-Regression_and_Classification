@@ -1,78 +1,79 @@
+from tensorflow.keras.activations import relu, linear
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+
 import numpy as np
 
-def test_cofi_cost_func(target):
-    num_users_r = 4
-    num_movies_r = 5 
-    num_features_r = 3
+def test_network(target):
+    num_actions = 4
+    state_size = 8
+    i = 0
+    assert len(target.layers) == 3, f"Wrong number of layers. Expected 3 but got {len(target.layers)}"
+    assert target.input.shape.as_list() == [None, state_size], \
+        f"Wrong input shape. Expected [None,  400] but got {target.input.shape.as_list()}" 
+    expected = [[Dense, [None, 64], relu],
+                [Dense, [None, 64], relu],
+                [Dense, [None, num_actions], linear]]
 
-    X_r = np.ones((num_movies_r, num_features_r))
-    W_r = np.ones((num_users_r, num_features_r))
-    b_r = np.zeros((1, num_users_r))
-    Y_r = np.zeros((num_movies_r, num_users_r))
-    R_r = np.zeros((num_movies_r, num_users_r))
-    
-    J = target(X_r, W_r, b_r, Y_r, R_r, 2);
-    assert not np.isclose(J, 13.5), f"Wrong value. Got {J}. Did you multiply the regularization term by lambda_?"
-    assert np.isclose(J, 27), f"Wrong value. Expected {27}, got {J}. Check the regularization term"
-    
-    
-    X_r = np.ones((num_movies_r, num_features_r))
-    W_r = np.ones((num_users_r, num_features_r))
-    b_r = np.ones((1, num_users_r))
-    Y_r = np.ones((num_movies_r, num_users_r))
-    R_r = np.ones((num_movies_r, num_users_r))
+    for layer in target.layers:
+        assert type(layer) == expected[i][0], \
+            f"Wrong type in layer {i}. Expected {expected[i][0]} but got {type(layer)}"
+        assert layer.output.shape.as_list() == expected[i][1], \
+            f"Wrong number of units in layer {i}. Expected {expected[i][1]} but got {layer.output.shape.as_list()}"
+        assert layer.activation == expected[i][2], \
+            f"Wrong activation in layer {i}. Expected {expected[i][2]} but got {layer.activation}"
+        i = i + 1
 
-    # Evaluate cost function
-    J = target(X_r, W_r, b_r, Y_r, R_r, 0);
+    print("\033[92mAll tests passed!")
     
-    assert np.isclose(J, 90), f"Wrong value. Expected {90}, got {J}. Check the term without the regularization"
+def test_optimizer(target, ALPHA):
+    assert type(target) == Adam, f"Wrong optimizer. Expected: {Adam}, got: {target}"
+    assert np.isclose(target.learning_rate.numpy(), ALPHA), f"Wrong alpha. Expected: {ALPHA}, got: {target.learning_rate.numpy()}"
+    print("\033[92mAll tests passed!")
     
     
-    X_r = np.ones((num_movies_r, num_features_r))
-    W_r = np.ones((num_users_r, num_features_r))
-    b_r = np.ones((1, num_users_r))
-    Y_r = np.zeros((num_movies_r, num_users_r))
-    R_r = np.ones((num_movies_r, num_users_r))
+def test_compute_loss(target):
+    num_actions = 4
+    def target_q_network_random(inputs):
+        return np.float32(np.random.rand(inputs.shape[0],num_actions))
+    
+    def q_network_random(inputs):
+        return np.float32(np.random.rand(inputs.shape[0],num_actions))
+    
+    def target_q_network_ones(inputs):
+        return np.float32(np.ones((inputs.shape[0], num_actions)))
+    
+    def q_network_ones(inputs):
+        return np.float32(np.ones((inputs.shape[0], num_actions)))
+    
+    np.random.seed(1)
+    states = np.float32(np.random.rand(64, 8))
+    actions = np.float32(np.floor(np.random.uniform(0, 1, (64, )) * 4))
+    rewards = np.float32(np.random.rand(64, ))
+    next_states = np.float32(np.random.rand(64, 8))
+    done_vals = np.float32((np.random.uniform(0, 1, size=(64,)) > 0.96) * 1)
 
-    # Evaluate cost function
-    J = target(X_r, W_r, b_r, Y_r, R_r, 0);
+    loss = target((states, actions, rewards, next_states, done_vals), 0.995, q_network_random, target_q_network_random)
     
-    assert np.isclose(J, 160), f"Wrong value. Expected {160}, got {J}. Check the term without the regularization"
-    
-    X_r = np.ones((num_movies_r, num_features_r))
-    W_r = np.ones((num_users_r, num_features_r))
-    b_r = np.ones((1, num_users_r))
-    Y_r = np.ones((num_movies_r, num_users_r))
-    R_r = np.ones((num_movies_r, num_users_r))
 
-    # Evaluate cost function
-    J = target(X_r, W_r, b_r, Y_r, R_r, 1);
-    
-    assert np.isclose(J, 103.5), f"Wrong value. Expected {103.5}, got {J}. Check the term without the regularization"
-    
-    num_users_r = 3
-    num_movies_r = 4 
-    num_features_r = 4
-    
-    #np.random.seed(247)
-    X_r = np.array([[0.36618032, 0.9075415,  0.8310605,  0.08590986],
-                     [0.62634721, 0.38234325, 0.85624346, 0.55183039],
-                     [0.77458727, 0.35704147, 0.31003294, 0.20100006],
-                     [0.34420469, 0.46103436, 0.88638208, 0.36175401]])#np.random.rand(num_movies_r, num_features_r)
-    W_r = np.array([[0.04786854, 0.61504665, 0.06633146, 0.38298908], 
-                    [0.16515965, 0.22320207, 0.89826005, 0.14373251], 
-                    [0.1274051 , 0.22757303, 0.96865613, 0.70741111]])#np.random.rand(num_users_r, num_features_r)
-    b_r = np.array([[0.14246472, 0.30110933, 0.56141144]])#np.random.rand(1, num_users_r)
-    Y_r = np.array([[0.20651685, 0.60767914, 0.86344527], 
-                    [0.82665019, 0.00944765, 0.4376798 ], 
-                    [0.81623732, 0.26776794, 0.03757507], 
-                    [0.37232161, 0.19890823, 0.13026598]])#np.random.rand(num_movies_r, num_users_r)
-    R_r = np.array([[1, 0, 1], [1, 0, 0], [1, 0, 0], [0, 1, 0]])#(np.random.rand(num_movies_r, num_users_r) > 0.4) * 1
+    assert np.isclose(loss, 0.6991737), f"Wrong value. Expected {0.6991737}, got {loss}"
 
-    # Evaluate cost function
-    J = target(X_r, W_r, b_r, Y_r, R_r, 3);
-    
-    assert np.isclose(J, 13.621929978531858, atol=1e-8), f"Wrong value. Expected {13.621929978531858}, got {J}."
-    
-    print('\033[92mAll tests passed!')
+    # Test when episode terminates
+    done_vals = np.float32(np.ones((64,)))
+    loss = target((states, actions, rewards, next_states, done_vals), 0.995, q_network_ones, target_q_network_ones)
+    assert np.isclose(loss, 0.343270182), f"Wrong value. Expected {0.343270182}, got {loss}"
+      
+    # Test MSE with parameters A = B
+    done_vals = np.float32((np.random.uniform(0, 1, size=(64,)) > 0.96) * 1)
+    rewards = np.float32(np.ones((64, )))
+    loss = target((states, actions, rewards, next_states, done_vals), 0, q_network_ones, target_q_network_ones)
+    assert np.isclose(loss, 0), f"Wrong value. Expected {0}, got {loss}"
+ 
+    # Test MSE with parameters A = 0 and B = 1
+    done_vals = np.float32((np.random.uniform(0, 1, size=(64,)) > 0.96) * 1)
+    rewards = np.float32(np.zeros((64, )))
+    loss = target((states, actions, rewards, next_states, done_vals), 0, q_network_ones, target_q_network_ones)
+    assert np.isclose(loss, 1), f"Wrong value. Expected {1}, got {loss}"
+
+    print("\033[92mAll tests passed!")
     
